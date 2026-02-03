@@ -6,8 +6,7 @@ import { Textarea } from '@/app/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/app/components/ui/alert-dialog';
 import { Label } from '@/app/components/ui/label';
-import { Progress } from '@/app/components/ui/progress';
-import { Plus, ChevronDown, Maximize2, RotateCcw, Target, CheckCircle2, X, Save, Trash2 } from 'lucide-react';
+import { Plus, Target, X, Save, MoreHorizontal, Calendar, LayoutGrid, ChevronLeft, ChevronRight, ListTodo, Users } from 'lucide-react';
 import { cn } from '@/app/components/ui/utils';
 
 export interface WeeklyGoal {
@@ -15,6 +14,7 @@ export interface WeeklyGoal {
   monthlyGoalId: string;
   goalTitle: string;
   targets: TargetType[];
+  weekNumber?: number; // Week number within the month (1-4)
 }
 
 export interface TargetType {
@@ -44,6 +44,13 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedMonthlyGoal, setSelectedMonthlyGoal] = useState('');
   const [goalTitle, setGoalTitle] = useState('');
+  const [viewMode, setViewMode] = useState<'kanban' | 'calendar'>('kanban');
+  const [weekStartDate, setWeekStartDate] = useState(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust for Monday start
+    return new Date(now.setDate(diff));
+  });
   const [targets, setTargets] = useState<Array<{ title: string; actionSteps: string }>>([
     { title: '', actionSteps: '' },
     { title: '', actionSteps: '' },
@@ -135,12 +142,12 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="tracking-wide mb-3 text-black font-semibold" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: '2.4rem' }}>WEEKLY PLANNING</h1>
+    <div className="p-8 min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="tracking-wide text-black font-semibold" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: '2.4rem' }}>WEEKLY PLANNING</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 bg-[#1a5f4a] hover:bg-[#145242]">
               <Plus className="w-4 h-4" />
               Create Weekly Goal
             </Button>
@@ -212,6 +219,43 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
         </Dialog>
       </div>
 
+      {/* View Toggle */}
+      <div className="flex items-center gap-2 mb-6">
+        <Button
+          variant={viewMode === 'kanban' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setViewMode('kanban')}
+          className={viewMode === 'kanban' ? 'bg-[#1a5f4a] hover:bg-[#145242]' : ''}
+        >
+          <LayoutGrid className="w-4 h-4 mr-2" />
+          Board
+        </Button>
+        <Button
+          variant={viewMode === 'calendar' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setViewMode('calendar')}
+          className={viewMode === 'calendar' ? 'bg-[#1a5f4a] hover:bg-[#145242]' : ''}
+        >
+          <Calendar className="w-4 h-4 mr-2" />
+          Calendar
+        </Button>
+      </div>
+
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <WeeklyCalendarView
+          weeklyGoals={weeklyGoals}
+          monthlyGoals={monthlyGoals}
+          weekStartDate={weekStartDate}
+          setWeekStartDate={setWeekStartDate}
+          getWeeklyGoalProgress={getWeeklyGoalProgress}
+          onGoalClick={handleExpand}
+        />
+      )}
+
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+      <>
       {weeklyGoals.length === 0 ? (
         <Card className="p-12 text-center">
           <p className="text-gray-500 mb-4">No weekly goals yet. Break down your monthly goals into weekly targets!</p>
@@ -225,146 +269,156 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
           )}
         </Card>
       ) : (
-        <div className="space-y-8">
+        <div className="flex gap-4 overflow-x-auto pb-4">
           {weeklyGoals.map((weeklyGoal) => {
             const monthlyGoal = monthlyGoals.find(g => g.id === weeklyGoal.monthlyGoalId);
             return (
-              <div key={weeklyGoal.id} className="space-y-4">
-                <Card className="border-2 border-gray-300">
-                  <CardHeader className="bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">FROM MONTHLY GOAL</p>
-                        <CardTitle className="text-lg">{monthlyGoal?.title || 'Unknown Goal'}</CardTitle>
-                      </div>
-                      {onDeleteWeeklyGoal && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-red-500">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Weekly Goal</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{weeklyGoal.goalTitle}"? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => onDeleteWeeklyGoal(weeklyGoal.id)} className="bg-red-500 hover:bg-red-600">
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
+              <div key={weeklyGoal.id} className="flex-shrink-0 w-72">
+                {/* Trello-style Column - White card with subtle shadow */}
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+                  {/* Column Header */}
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-800 text-sm">{weeklyGoal.goalTitle}</h3>
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="border-2 border-primary bg-accent/50 p-4 mb-4 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weekly Goal</Label>
-                        {(() => {
-                          const progress = getWeeklyGoalProgress(weeklyGoal.id);
-                          return (
-                            <div className="flex items-center gap-2">
-                              {progress === 100 ? (
-                                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                              ) : null}
-                              <span className={cn(
-                                "text-sm font-semibold",
-                                progress === 100 ? "text-green-600" : "text-gray-600"
-                              )}>
-                                {progress}%
-                              </span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <p className="text-lg font-medium mb-3">{weeklyGoal.goalTitle}</p>
-                      <Progress value={getWeeklyGoalProgress(weeklyGoal.id)} className="h-2" />
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-[#1a5f4a] hover:bg-gray-100">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Weekly Goal</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{weeklyGoal.goalTitle}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => onDeleteWeeklyGoal?.(weeklyGoal.id)} className="bg-red-500 hover:bg-red-600">
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
-                    <div className="flex items-center justify-center my-4">
-                      <div className="flex flex-col items-center gap-1">
-                        <ChevronDown className="w-5 h-5 text-primary" />
-                        <span className="text-xs text-gray-500 font-medium px-3 py-1 bg-gray-100 rounded-full">Break into targets</span>
+                  </div>
+                  
+                  {/* Cards Container */}
+                  <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto bg-gray-50/50">
+                    {/* Monthly Goal Reference Card */}
+                    <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100">
+                      <div className="h-1.5 bg-[#1a5f4a]" />
+                      <div className="p-3">
+                        <p className="text-xs text-gray-500 mb-1">Monthly Goal</p>
+                        <p className="text-sm font-medium text-gray-700">{monthlyGoal?.title || 'Unknown Goal'}</p>
                       </div>
                     </div>
-                    <div className="grid md:grid-cols-3 gap-4 mt-6">
-                      {weeklyGoal.targets.map((target, idx) => {
-                        const targetProgress = getTargetProgress(weeklyGoal.id, target.id);
-                        return (
-                        <Card key={target.id} className={cn(
-                          "border-2 hover:border-primary/50 transition-colors",
-                          targetProgress.percentage === 100 && "border-green-300 bg-green-50/50"
-                        )}>
-                          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 py-3">
-                            <CardTitle className="text-sm flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {targetProgress.percentage === 100 ? (
-                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                ) : (
-                                  <Target className="w-4 h-4 text-primary" />
-                                )}
-                                Target {idx + 1}
-                              </div>
-                              {targetProgress.total > 0 && (
-                                <span className={cn(
-                                  "text-xs font-medium px-2 py-0.5 rounded-full",
-                                  targetProgress.percentage === 100 
-                                    ? "bg-green-100 text-green-700" 
-                                    : "bg-gray-200 text-gray-600"
-                                )}>
-                                  {targetProgress.completed}/{targetProgress.total}
-                                </span>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-4">
-                            <p className="font-semibold text-gray-800 mb-3">{target.title}</p>
-                            {targetProgress.total > 0 && (
-                              <div className="mb-3">
-                                <Progress value={targetProgress.percentage} className="h-1.5" />
+                    
+                    {/* Target Cards */}
+                    {weeklyGoal.targets.map((target) => {
+                      const targetProgress = getTargetProgress(weeklyGoal.id, target.id);
+                      const isComplete = targetProgress.percentage === 100;
+                      return (
+                        <div 
+                          key={target.id} 
+                          className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer border border-gray-100"
+                          onClick={() => handleExpand(weeklyGoal)}
+                        >
+                          {/* Color Label */}
+                          <div className={cn(
+                            "h-1.5",
+                            isComplete ? "bg-[#1a5f4a]" : 
+                            targetProgress.percentage > 0 ? "bg-yellow-400" : "bg-orange-400"
+                          )} />
+                          
+                          <div className="p-3">
+                            {/* Target Title */}
+                            <p className="font-medium text-gray-800 text-sm mb-2">{target.title}</p>
+                            
+                            {/* Action Steps Preview */}
+                            {target.actionSteps.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-xs text-gray-500 line-clamp-2">
+                                  {target.actionSteps.slice(0, 2).join(' • ')}
+                                  {target.actionSteps.length > 2 && ' ...'}
+                                </p>
                               </div>
                             )}
-                            <div className="border-t pt-3 mt-2">
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Action Steps</p>
-                              <div className="space-y-2">
-                                {target.actionSteps.length === 0 ? (
-                                  <p className="text-sm text-gray-400 italic">No action steps yet</p>
+                            
+                            {/* Card Footer */}
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-2">
+                                {/* Due/Status Badge */}
+                                {targetProgress.total > 0 ? (
+                                  <div className={cn(
+                                    "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                                    isComplete 
+                                      ? "bg-[#1a5f4a]/10 text-[#1a5f4a]" 
+                                      : "bg-gray-100 text-gray-600"
+                                  )}>
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{targetProgress.completed}/{targetProgress.total}</span>
+                                  </div>
                                 ) : (
-                                  target.actionSteps.map((step, stepIdx) => (
-                                    <div key={stepIdx} className="flex gap-2 text-sm items-start">
-                                      <CheckCircle2 className="w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0" />
-                                      <span className="text-gray-600">{step}</span>
-                                    </div>
-                                  ))
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">
+                                    <ListTodo className="w-3 h-3" />
+                                    <span>{target.actionSteps.length} steps</span>
+                                  </div>
+                                )}
+                                
+                                {/* Progress Indicator */}
+                                {targetProgress.total > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <ListTodo className="w-3 h-3 text-gray-400" />
+                                  </div>
                                 )}
                               </div>
+                              
+                              {/* Avatar Placeholder */}
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#1a5f4a]/10 to-[#1a5f4a]/20 flex items-center justify-center">
+                                <Users className="w-3 h-3 text-[#1a5f4a]" />
+                              </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                        );
-                      })}
-                    </div>
-                    <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
-                      <Button variant="outline" size="sm" className="text-gray-500" onClick={() => handleExpand(weeklyGoal)}>
-                        <Maximize2 className="w-4 h-4 mr-1" />
-                        Expand
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-gray-500" onClick={() => handleReset(weeklyGoal.id)}>
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        Reset
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Add Card Button */}
+                  <div className="p-2 pt-0 bg-gray-50/50">
+                    <button 
+                      onClick={() => handleExpand(weeklyGoal)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-[#1a5f4a] hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add a target</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             );
           })}
+          
+          {/* Add New Column Button */}
+          <div className="flex-shrink-0 w-72">
+            <button
+              onClick={() => setIsDialogOpen(true)}
+              className="w-full h-12 flex items-center justify-center gap-2 bg-[#1a5f4a]/10 hover:bg-[#1a5f4a]/20 rounded-xl border-2 border-dashed border-[#1a5f4a]/30 text-[#1a5f4a] transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="font-medium text-sm">Add Weekly Goal</span>
+            </button>
+          </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Expand Dialog */}
@@ -451,6 +505,175 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Weekly Calendar View Component
+function WeeklyCalendarView({
+  weeklyGoals,
+  monthlyGoals,
+  weekStartDate,
+  setWeekStartDate,
+  getWeeklyGoalProgress,
+  onGoalClick
+}: {
+  weeklyGoals: WeeklyGoal[];
+  monthlyGoals: Array<{ id: string; title: string }>;
+  weekStartDate: Date;
+  setWeekStartDate: (date: Date) => void;
+  getWeeklyGoalProgress: (goalId: string) => number;
+  onGoalClick: (goal: WeeklyGoal) => void;
+}) {
+  // Get week days
+  const getWeekDays = () => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(weekStartDate);
+      day.setDate(weekStartDate.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const weekDays = getWeekDays();
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const prevWeek = () => {
+    const newDate = new Date(weekStartDate);
+    newDate.setDate(weekStartDate.getDate() - 7);
+    setWeekStartDate(newDate);
+  };
+
+  const nextWeek = () => {
+    const newDate = new Date(weekStartDate);
+    newDate.setDate(weekStartDate.getDate() + 7);
+    setWeekStartDate(newDate);
+  };
+
+  const goToCurrentWeek = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    setWeekStartDate(new Date(now.setDate(diff)));
+  };
+
+  const today = new Date();
+  const isToday = (date: Date) => {
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+
+  // Format week range for header
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekStartDate.getDate() + 6);
+  const weekRange = `${monthNames[weekStartDate.getMonth()]} ${weekStartDate.getDate()} - ${monthNames[weekEndDate.getMonth()]} ${weekEndDate.getDate()}, ${weekEndDate.getFullYear()}`;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Calendar Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-800">{weekRange}</h2>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={prevWeek}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToCurrentWeek}>
+            Today
+          </Button>
+          <Button variant="outline" size="sm" onClick={nextWeek}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Week Grid */}
+      <div className="grid grid-cols-7 divide-x divide-gray-100">
+        {weekDays.map((day, idx) => (
+          <div key={idx} className="flex flex-col">
+            {/* Day Header */}
+            <div className={cn(
+              "px-3 py-2 text-center border-b border-gray-100",
+              isToday(day) ? "bg-[#1a5f4a] text-white" : "bg-gray-50"
+            )}>
+              <div className="text-xs font-medium">{dayNames[idx]}</div>
+              <div className={cn(
+                "text-lg font-semibold",
+                isToday(day) ? "text-white" : "text-gray-800"
+              )}>{day.getDate()}</div>
+            </div>
+
+            {/* Day Content */}
+            <div className="flex-1 min-h-[300px] p-2 space-y-2 bg-white">
+              {weeklyGoals.map((goal) => {
+                const progress = getWeeklyGoalProgress(goal.id);
+                const monthlyGoal = monthlyGoals.find(g => g.id === goal.monthlyGoalId);
+                
+                // Show all goals on all days for now (can be customized to specific dates)
+                if (idx === 0) { // Show goals starting on Monday
+                  return (
+                    <div
+                      key={goal.id}
+                      onClick={() => onGoalClick(goal)}
+                      className="p-2 bg-gradient-to-r from-[#1a5f4a]/5 to-[#1a5f4a]/10 rounded-lg border border-[#1a5f4a]/20 cursor-pointer hover:shadow-md transition-shadow"
+                    >
+                      <p className="text-xs font-medium text-gray-800 mb-1 truncate">{goal.goalTitle}</p>
+                      <p className="text-xs text-gray-500 truncate">{monthlyGoal?.title}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[#1a5f4a] rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500">{progress}%</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Target className="w-3 h-3 text-[#1a5f4a]" />
+                        <span className="text-xs text-gray-500">{goal.targets.length} targets</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                // Show target cards spread across the week
+                const targetForDay = goal.targets[idx % goal.targets.length];
+                if (targetForDay && idx < goal.targets.length) {
+                  return (
+                    <div
+                      key={`${goal.id}-${idx}`}
+                      onClick={() => onGoalClick(goal)}
+                      className="p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:shadow-md hover:border-[#1a5f4a]/30 transition-all"
+                    >
+                      <p className="text-xs font-medium text-gray-700 truncate">{targetForDay.title}</p>
+                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+                        <ListTodo className="w-3 h-3" />
+                        <span>{targetForDay.actionSteps.length} steps</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return null;
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-[#1a5f4a]"></div>
+          <span className="text-sm text-gray-600">Weekly Goal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded border-2 border-gray-300"></div>
+          <span className="text-sm text-gray-600">Target</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import MonthlyDashboard, { MonthlyGoal } from '@/app/components/MonthlyDashboard';
-import WeeklyPlanning, { WeeklyGoal } from '@/app/components/WeeklyPlanning';
+import { MonthlyGoal } from '@/app/components/MonthlyDashboard';
+import { WeeklyGoal } from '@/app/components/WeeklyPlanning';
+import Goals from '@/app/components/Goals';
 import DailyTasks, { DailyTask } from '@/app/components/DailyTasks';
 import Dashboard from '@/app/components/Dashboard';
 import ProfilePage from '@/app/components/ProfilePage';
 import { SignupPage, LoginPage, CompanyInfoPage, EmployeeInfoPage, SignupData, CompanyData, Employee } from '@/app/components/auth';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
 import { Button } from '@/app/components/ui/button';
-import { Calendar, Target, CheckSquare, Download, LogOut, Home } from 'lucide-react';
+import { Target, CheckSquare, Download, LogOut, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/app/components/ui/sonner';
 
@@ -30,7 +31,7 @@ export default function App() {
   const [appView, setAppView] = useState<AppView>('dashboard');
   const [employees, setEmployees] = useState<Employee[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'monthly' | 'weekly' | 'daily'>('monthly');
+  const [activeTab, setActiveTab] = useState<'goals' | 'tasks'>('goals');
   const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoal[]>([]);
   const [weeklyGoals, setWeeklyGoals] = useState<WeeklyGoal[]>([]);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
@@ -285,6 +286,12 @@ export default function App() {
     toast.success('Monthly goal deleted');
   };
 
+  const handleUpdateMonthlyGoal = (goalId: string, updates: Partial<MonthlyGoal>) => {
+    setMonthlyGoals(monthlyGoals.map(goal => 
+      goal.id === goalId ? { ...goal, ...updates } : goal
+    ));
+  };
+
   const handleDeleteWeeklyGoal = (goalId: string) => {
     setWeeklyGoals(weeklyGoals.filter(goal => goal.id !== goalId));
     toast.success('Weekly goal deleted');
@@ -293,6 +300,13 @@ export default function App() {
   const handleDeleteTask = (taskId: string) => {
     setDailyTasks(dailyTasks.filter(task => task.id !== taskId));
     toast.success('Task deleted');
+  };
+
+  const handleUpdateTask = (taskId: string, updates: Partial<DailyTask>) => {
+    setDailyTasks(dailyTasks.map(task => 
+      task.id === taskId ? { ...task, ...updates } : task
+    ));
+    toast.success('Task updated successfully!');
   };
 
   const handleAddTask = (task: Omit<DailyTask, 'id' | 'timeSpent' | 'isActive'>) => {
@@ -478,9 +492,8 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
           monthlyGoals={monthlyGoals}
           weeklyGoals={weeklyGoals}
           weeklyGoalsProgress={weeklyGoalsProgress}
-          onNavigateToMonthly={() => { setAppView('workspace'); setActiveTab('monthly'); }}
-          onNavigateToWeekly={() => { setAppView('workspace'); setActiveTab('weekly'); }}
-          onNavigateToDaily={() => { setAppView('workspace'); setActiveTab('daily'); }}
+          onNavigateToGoals={() => { setAppView('workspace'); setActiveTab('goals'); }}
+          onNavigateToTasks={() => { setAppView('workspace'); setActiveTab('tasks'); }}
           onLogout={handleLogout}
           onProfileClick={() => setAppView('profile')}
         />
@@ -566,44 +579,31 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
 
       <div className="max-w-7xl mx-auto px-8 pt-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3 mb-6 bg-gray-100 p-1">
-            <TabsTrigger value="monthly" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Calendar className="w-4 h-4" />
-              Monthly
-            </TabsTrigger>
-            <TabsTrigger value="weekly" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+          <TabsList className="grid w-full max-w-xs grid-cols-2 mb-6 bg-gray-100 p-1">
+            <TabsTrigger value="goals" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
               <Target className="w-4 h-4" />
-              Weekly
+              Goals
             </TabsTrigger>
-            <TabsTrigger value="daily" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <TabsTrigger value="tasks" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white">
               <CheckSquare className="w-4 h-4" />
-              Daily
+              Tasks
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="monthly" className="mt-0">
-            <MonthlyDashboard
-              goals={monthlyGoals}
-              onAddGoal={handleAddMonthlyGoal}
-              onDeleteGoal={handleDeleteMonthlyGoal}
-              currentMonth={currentMonth}
-              weeklyGoalsProgress={weeklyGoalsProgress}
-            />
-          </TabsContent>
-
-          <TabsContent value="weekly" className="mt-0">
-            <WeeklyPlanning
-              weeklyGoals={weeklyGoals}
+          <TabsContent value="goals" className="mt-0">
+            <Goals
               monthlyGoals={monthlyGoals}
-              dailyTasks={dailyTasks}
+              weeklyGoals={weeklyGoals}
+              onAddMonthlyGoal={handleAddMonthlyGoal}
+              onUpdateMonthlyGoal={handleUpdateMonthlyGoal}
+              onDeleteMonthlyGoal={handleDeleteMonthlyGoal}
               onAddWeeklyGoal={handleAddWeeklyGoal}
               onUpdateWeeklyGoal={handleUpdateWeeklyGoal}
-              onResetWeeklyGoal={handleResetWeeklyGoal}
               onDeleteWeeklyGoal={handleDeleteWeeklyGoal}
             />
           </TabsContent>
 
-          <TabsContent value="daily" className="mt-0">
+          <TabsContent value="tasks" className="mt-0">
             <DailyTasks
               tasks={dailyTasks}
               weeklyGoals={weeklyGoals}
@@ -612,6 +612,7 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
               onUpdateTaskStatus={handleUpdateTaskStatus}
               onStartStopTask={handleStartStopTask}
               onDeleteTask={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
             />
           </TabsContent>
         </Tabs>
