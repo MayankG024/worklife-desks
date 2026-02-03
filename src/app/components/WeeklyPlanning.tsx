@@ -21,6 +21,7 @@ export interface TargetType {
   id: string;
   title: string;
   actionSteps: string[];
+  completed?: boolean;
 }
 
 interface DailyTask {
@@ -36,11 +37,10 @@ interface WeeklyPlanningProps {
   dailyTasks?: DailyTask[];
   onAddWeeklyGoal: (goal: Omit<WeeklyGoal, 'id'>) => void;
   onUpdateWeeklyGoal?: (goal: WeeklyGoal) => void;
-  onResetWeeklyGoal?: (goalId: string) => void;
   onDeleteWeeklyGoal?: (goalId: string) => void;
 }
 
-export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks = [], onAddWeeklyGoal, onUpdateWeeklyGoal, onResetWeeklyGoal, onDeleteWeeklyGoal }: WeeklyPlanningProps) {
+export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks = [], onAddWeeklyGoal, onUpdateWeeklyGoal, onDeleteWeeklyGoal }: WeeklyPlanningProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedMonthlyGoal, setSelectedMonthlyGoal] = useState('');
   const [goalTitle, setGoalTitle] = useState('');
@@ -85,12 +85,6 @@ export default function WeeklyPlanning({ weeklyGoals, monthlyGoals, dailyTasks =
       };
       onUpdateWeeklyGoal(updatedGoal);
       setExpandedGoal(null);
-    }
-  };
-
-  const handleReset = (goalId: string) => {
-    if (onResetWeeklyGoal) {
-      onResetWeeklyGoal(goalId);
     }
   };
 

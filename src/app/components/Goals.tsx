@@ -5,10 +5,12 @@ import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
 import { Label } from '@/app/components/ui/label';
+import { Checkbox } from '@/app/components/ui/checkbox';
 import { cn } from '@/app/components/ui/utils';
 import { Plus, ChevronLeft, ChevronRight, Target, Calendar, MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react';
 import { MonthlyGoal } from './MonthlyDashboard';
 import { WeeklyGoal } from './WeeklyPlanning';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +57,13 @@ export default function Goals({
   const [editingMonthlyGoal, setEditingMonthlyGoal] = useState<MonthlyGoal | null>(null);
   const [editingWeeklyGoal, setEditingWeeklyGoal] = useState<WeeklyGoal | null>(null);
   
+  // Form validation errors
+  const [monthlyGoalErrors, setMonthlyGoalErrors] = useState<{title?: string; deadline?: string}>({});
+  
+  // Delete confirmation states
+  const [monthlyGoalToDelete, setMonthlyGoalToDelete] = useState<string | null>(null);
+  const [weeklyGoalToDelete, setWeeklyGoalToDelete] = useState<string | null>(null);
+  
   // Expanded view states
   const [expandedMonthlyGoal, setExpandedMonthlyGoal] = useState<MonthlyGoal | null>(null);
   const [expandedWeeklyGoal, setExpandedWeeklyGoal] = useState<WeeklyGoal | null>(null);
@@ -89,6 +98,22 @@ export default function Goals({
   };
 
   const handleAddMonthlyGoal = () => {
+    const errors: {title?: string; deadline?: string} = {};
+    
+    if (!newMonthlyGoal.title.trim()) {
+      errors.title = 'Title is required';
+    }
+    
+    if (newMonthlyGoal.deadline && new Date(newMonthlyGoal.deadline) < new Date()) {
+      errors.deadline = 'Deadline must be in the future';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setMonthlyGoalErrors(errors);
+      toast.error('Please fix the errors before submitting');
+      return;
+    }
+    
     if (newMonthlyGoal.title.trim()) {
       onAddMonthlyGoal({
         title: newMonthlyGoal.title,
@@ -106,7 +131,9 @@ export default function Goals({
         outcome: '',
         nextSteps: ['']
       });
+      setMonthlyGoalErrors({});
       setIsAddMonthlyOpen(false);
+      toast.success('Monthly goal added successfully!');
     }
   };
 
@@ -162,7 +189,7 @@ export default function Goals({
         
         {/* Week Navigation */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 hover:border-gray-300 transition-colors">
             <Button 
               variant="ghost" 
               size="sm" 
@@ -197,12 +224,19 @@ export default function Goals({
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
-                  <Label>Title</Label>
+                  <Label>Title *</Label>
                   <Input 
                     value={newMonthlyGoal.title}
-                    onChange={(e) => setNewMonthlyGoal({...newMonthlyGoal, title: e.target.value})}
+                    onChange={(e) => {
+                      setNewMonthlyGoal({...newMonthlyGoal, title: e.target.value});
+                      if (monthlyGoalErrors.title) setMonthlyGoalErrors({...monthlyGoalErrors, title: undefined});
+                    }}
                     placeholder="What do you want to achieve?"
+                    className={monthlyGoalErrors.title ? 'border-red-500' : ''}
                   />
+                  {monthlyGoalErrors.title && (
+                    <p className="text-red-500 text-xs mt-1">{monthlyGoalErrors.title}</p>
+                  )}
                 </div>
                 <div>
                   <Label>Why is this important?</Label>
@@ -217,8 +251,15 @@ export default function Goals({
                   <Input 
                     type="date"
                     value={newMonthlyGoal.deadline}
-                    onChange={(e) => setNewMonthlyGoal({...newMonthlyGoal, deadline: e.target.value})}
+                    onChange={(e) => {
+                      setNewMonthlyGoal({...newMonthlyGoal, deadline: e.target.value});
+                      if (monthlyGoalErrors.deadline) setMonthlyGoalErrors({...monthlyGoalErrors, deadline: undefined});
+                    }}
+                    className={monthlyGoalErrors.deadline ? 'border-red-500' : ''}
                   />
+                  {monthlyGoalErrors.deadline && (
+                    <p className="text-red-500 text-xs mt-1">{monthlyGoalErrors.deadline}</p>
+                  )}
                 </div>
                 <div>
                   <Label>Expected Outcome</Label>
@@ -229,7 +270,10 @@ export default function Goals({
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsAddMonthlyOpen(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setIsAddMonthlyOpen(false);
+                    setMonthlyGoalErrors({});
+                  }}>
                     Cancel
                   </Button>
                   <Button className="bg-[#1a5f4a] hover:bg-[#164a3a]" onClick={handleAddMonthlyGoal}>
@@ -246,13 +290,13 @@ export default function Goals({
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {/* Header Row */}
         <div className="grid grid-cols-[280px_1fr] border-b border-gray-200 bg-gray-50">
-          <div className="px-4 py-3 border-r border-gray-200">
+          <div className="px-4 py-4 border-r border-gray-200">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-[#1a5f4a]" />
               <span className="font-semibold text-gray-700 text-sm">Monthly Goals</span>
             </div>
           </div>
-          <div className="px-4 py-3">
+          <div className="px-4 py-4">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-[#1a5f4a]" />
               <span className="font-semibold text-gray-700 text-sm">Weekly Targets</span>
@@ -285,10 +329,9 @@ export default function Goals({
                 )}
               >
                 {/* Monthly Goal Card */}
-                <div className="p-3 border-r border-gray-200 bg-gray-50/50">
+                <div className="p-4 border-r border-gray-200 bg-gray-50/50">
                   <Card 
-                    className="p-3 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => setExpandedMonthlyGoal(monthlyGoal)}
+                    className="p-4 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all hover:border-gray-300 cursor-pointer"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="font-semibold text-gray-800 text-sm leading-tight pr-2">
@@ -296,19 +339,20 @@ export default function Goals({
                       </h3>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
-                            onClick={(e) => e.stopPropagation()}
+                          <button 
+                            className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
                           >
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="w-40">
                           <DropdownMenuItem onClick={() => setEditingMonthlyGoal(monthlyGoal)}>
                             <Pencil className="w-4 h-4 mr-2" />
                             Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setExpandedMonthlyGoal(monthlyGoal)}>
+                            <Target className="w-4 h-4 mr-2" />
+                            View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => {
@@ -319,31 +363,13 @@ export default function Goals({
                             <Plus className="w-4 h-4 mr-2" />
                             Add Weekly Target
                           </DropdownMenuItem>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Monthly Goal?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will delete the goal and all associated weekly targets.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => onDeleteMonthlyGoal(monthlyGoal.id)}
-                                  className="bg-red-500 hover:bg-red-600"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <DropdownMenuItem 
+                            onClick={() => setMonthlyGoalToDelete(monthlyGoal.id)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -359,13 +385,13 @@ export default function Goals({
                 </div>
 
                 {/* Weekly Goals for this Monthly Goal */}
-                <div className="p-3 min-h-[100px]">
+                <div className="p-4 min-h-[100px]">
                   {weeklyGoalsForThisMonth.length === 0 ? (
                     <div className="h-full flex items-center justify-center">
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="text-gray-500 border-dashed"
+                        className="text-gray-500 border-dashed hover:border-solid hover:bg-gray-50 transition-all"
                         onClick={() => {
                           setSelectedMonthlyGoalId(monthlyGoal.id);
                           setIsAddWeeklyOpen(true);
@@ -380,8 +406,7 @@ export default function Goals({
                       {weeklyGoalsForThisMonth.map((weeklyGoal, index) => (
                         <Card 
                           key={weeklyGoal.id} 
-                          className="p-3 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex-shrink-0 w-[200px] cursor-pointer"
-                          onClick={() => setExpandedWeeklyGoal(weeklyGoal)}
+                          className="p-4 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all hover:border-gray-300 flex-shrink-0 w-[200px]"
                         >
                           {/* Week Tag */}
                           <div className="mb-2">
@@ -396,57 +421,56 @@ export default function Goals({
                             </h4>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600"
-                                  onClick={(e) => e.stopPropagation()}
+                                <button 
+                                  className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
                                 >
-                                  <MoreHorizontal className="w-3 h-3" />
-                                </Button>
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setEditingWeeklyGoal(weeklyGoal)}>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem 
+                                  onClick={() => setEditingWeeklyGoal(weeklyGoal)}
+                                >
                                   <Pencil className="w-4 h-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Weekly Target?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        onClick={() => onDeleteWeeklyGoal(weeklyGoal.id)}
-                                        className="bg-red-500 hover:bg-red-600"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <DropdownMenuItem 
+                                  onClick={() => setExpandedWeeklyGoal(weeklyGoal)}
+                                >
+                                  <Target className="w-4 h-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => setWeeklyGoalToDelete(weeklyGoal.id)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
                           
-                          {/* Targets as checkmarks */}
-                          <div className="space-y-1">
+                          {/* Targets as checkboxes */}
+                          <div className="space-y-1.5">
                             {weeklyGoal.targets.slice(0, 3).map((target) => (
-                              <div key={target.id} className="flex items-start gap-1.5">
-                                <div className="w-3 h-3 mt-0.5 rounded border border-[#1a5f4a] flex items-center justify-center flex-shrink-0">
-                                  <Check className="w-2 h-2 text-[#1a5f4a] opacity-0" />
-                                </div>
-                                <span className="text-xs text-gray-600 line-clamp-1">{target.title}</span>
+                              <div key={target.id} className="flex items-start gap-2">
+                                <Checkbox
+                                  checked={target.completed || false}
+                                  onCheckedChange={(checked) => {
+                                    const updatedTargets = weeklyGoal.targets.map(t => 
+                                      t.id === target.id ? { ...t, completed: checked as boolean } : t
+                                    );
+                                    onUpdateWeeklyGoal({ ...weeklyGoal, targets: updatedTargets });
+                                  }}
+                                  className="h-3.5 w-3.5 mt-0.5"
+                                />
+                                <span className={cn(
+                                  "text-xs text-gray-600 line-clamp-1",
+                                  target.completed && "line-through text-gray-400"
+                                )}>
+                                  {target.title}
+                                </span>
                               </div>
                             ))}
                             {weeklyGoal.targets.length > 3 && (
@@ -973,6 +997,58 @@ export default function Goals({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Monthly Goal Confirmation */}
+      <AlertDialog open={!!monthlyGoalToDelete} onOpenChange={(open) => !open && setMonthlyGoalToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Monthly Goal</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this monthly goal? This will also delete all associated weekly targets. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMonthlyGoalToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (monthlyGoalToDelete) {
+                  onDeleteMonthlyGoal(monthlyGoalToDelete);
+                  setMonthlyGoalToDelete(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Weekly Goal Confirmation */}
+      <AlertDialog open={!!weeklyGoalToDelete} onOpenChange={(open) => !open && setWeeklyGoalToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Weekly Target</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this weekly target? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setWeeklyGoalToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (weeklyGoalToDelete) {
+                  onDeleteWeeklyGoal(weeklyGoalToDelete);
+                  setWeeklyGoalToDelete(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

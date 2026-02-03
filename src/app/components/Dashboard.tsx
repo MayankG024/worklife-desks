@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
-import { Menu, User, Mail, Pencil, Check, X, Clock, Calendar, Plus } from 'lucide-react';
+import { Menu, User, Mail, Pencil, Check, X, Clock, Calendar, Plus, Search, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/app/components/ui/select';
 import { Input } from '@/app/components/ui/input';
 import { Checkbox } from '@/app/components/ui/checkbox';
@@ -47,7 +47,7 @@ interface EmployeeData {
 
 interface DashboardProps {
   employees: Employee[];
-  weeklyGoalsProgress: Array<{ id: string; monthlyGoalId: string; progress: number }>;
+  isLoading?: boolean;
   onNavigateToGoals: () => void;
   onNavigateToTasks: () => void;
   onLogout: () => void;
@@ -78,19 +78,44 @@ const getModeColor = (mode: EmployeeMode): string => {
 
 export default function Dashboard({ 
   employees,
-  weeklyGoalsProgress,
+  isLoading = false,
   onNavigateToGoals, 
   onNavigateToTasks,
   onLogout,
   onProfileClick
 }: DashboardProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [employeeModes, setEmployeeModes] = useState<Record<string, EmployeeMode>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [employeeModes, setEmployeeModes] = useState<Record<string, EmployeeMode>>(() => {
+    const saved = localStorage.getItem('employeeModes');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [editing, setEditing] = useState<EditingState>({});
-  const [employeeData, setEmployeeData] = useState<EmployeeData>({});
+  const [employeeData, setEmployeeData] = useState<EmployeeData>(() => {
+    const saved = localStorage.getItem('employeeData');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [employeeTasks, setEmployeeTasks] = useState<EmployeeTasks>({});
   const [newTaskInput, setNewTaskInput] = useState<Record<string, string>>({});
-  const [employeeNotes, setEmployeeNotes] = useState<Record<string, string>>({});
+  const [employeeNotes, setEmployeeNotes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('employeeNotes');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Persist employeeModes to localStorage
+  useEffect(() => {
+    localStorage.setItem('employeeModes', JSON.stringify(employeeModes));
+  }, [employeeModes]);
+
+  // Persist employeeData to localStorage
+  useEffect(() => {
+    localStorage.setItem('employeeData', JSON.stringify(employeeData));
+  }, [employeeData]);
+
+  // Persist employeeNotes to localStorage
+  useEffect(() => {
+    localStorage.setItem('employeeNotes', JSON.stringify(employeeNotes));
+  }, [employeeNotes]);
 
   // Initialize default tasks for an employee
   const getEmployeeTasks = (empId: string): TaskItem[] => {
@@ -180,6 +205,16 @@ export default function Dashboard({
     };
   });
 
+  // Filter employees based on search query
+  const filteredEmployees = employeesWithStatus.filter(employee => {
+    const query = searchQuery.toLowerCase();
+    return (
+      employee.name.toLowerCase().includes(query) ||
+      (employee.role?.toLowerCase() || '').includes(query) ||
+      employee.mode.toLowerCase().includes(query)
+    );
+  });
+
   const handleModeChange = (employeeId: string, mode: EmployeeMode) => {
     setEmployeeModes(prev => ({ ...prev, [employeeId]: mode }));
   };
@@ -224,9 +259,9 @@ export default function Dashboard({
             <div className="px-4 py-2 border-2 border-primary rounded-lg">
               <h2 className="text-sm tracking-widest text-primary font-normal">WORK LIFE DESKS</h2>
             </div>
-            <button 
+            <button
               onClick={onProfileClick}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="View Profile"
             >
               <User className="w-5 h-5 text-gray-600" />
@@ -238,12 +273,12 @@ export default function Dashboard({
       {/* Sidebar */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="bg-white w-64 shadow-xl p-6 space-y-4">
+          <div className="bg-white w-64 shadow-xl p-8 space-y-4">
             <h3 className="font-semibold text-lg mb-4">Navigation</h3>
-            <button onClick={() => { onNavigateToGoals(); setSidebarOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-lg">Goals</button>
-            <button onClick={() => { onNavigateToTasks(); setSidebarOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-lg">Tasks</button>
+            <button onClick={() => { onNavigateToGoals(); setSidebarOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors">Goals</button>
+            <button onClick={() => { onNavigateToTasks(); setSidebarOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-lg transition-colors">Tasks</button>
             <hr />
-            <button onClick={onLogout} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 rounded-lg">Logout</button>
+            <button onClick={onLogout} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors">Logout</button>
           </div>
           <div className="flex-1 bg-black/20" onClick={() => setSidebarOpen(false)} />
         </div>
@@ -253,16 +288,71 @@ export default function Dashboard({
       <div className="flex-1 flex overflow-hidden p-4 gap-4">
         {/* Employees Section */}
         <div className="flex-1 flex flex-col min-w-0">
-          <h1 className="text-2xl font-bold text-center mb-4 tracking-wide">EMPLOYEES</h1>
+          <div className="mb-4">
+            <h1 className="text-2xl font-bold text-center mb-3 tracking-wide">EMPLOYEES</h1>
+            
+            {/* Search Bar */}
+            <div className="relative max-w-md mx-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Search by name, role, or status..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 w-full border-gray-300 focus:border-[#1a5f4a] focus:ring-[#1a5f4a]"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
           
           <div className="flex-1 overflow-auto">
-            <div className="grid grid-cols-3 gap-4">
-              {employeesWithStatus.map((employee) => (
-                <Card key={employee.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+            {/* Loading State */}
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 className="w-12 h-12 animate-spin text-[#1a5f4a] mx-auto mb-4" />
+                  <p className="text-gray-500">Loading employees...</p>
+                </div>
+              </div>
+            ) : filteredEmployees.length === 0 ? (
+              /* Empty State */
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center max-w-md">
+                  <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                    {searchQuery ? 'No employees found' : 'No employees yet'}
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    {searchQuery 
+                      ? `No employees match "${searchQuery}". Try a different search term.`
+                      : 'Add employees to get started with tracking their work and progress.'}
+                  </p>
+                  {searchQuery && (
+                    <Button 
+                      onClick={() => setSearchQuery('')}
+                      variant="outline"
+                    >
+                      Clear search
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Employee Cards */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredEmployees.map((employee) => (
+                <Card key={employee.id} className="border-2 border-gray-300 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
                     <div className="flex">
                       {/* Left side - Avatar and Name */}
-                      <div className="p-5 flex flex-col items-center justify-start border-r border-gray-100 bg-gray-50/50 min-w-[140px]">
+                      <div className="p-6 flex flex-col items-center justify-start border-r-2 border-gray-200 bg-gray-50/50 min-w-[140px]">
                         {/* Animated Avatar Placeholder */}
                         <div className="w-24 h-24 rounded-full flex items-center justify-center border-4 border-green-200 mb-3 overflow-hidden bg-gradient-to-br from-green-100 via-green-200 to-emerald-200 animate-pulse">
                           <svg viewBox="0 0 24 24" className="w-12 h-12 text-green-600/60 fill-current">
@@ -295,14 +385,14 @@ export default function Dashboard({
                             {isEditing(employee.id, 'workHours') ? (
                               <button 
                                 onClick={() => stopEditing(employee.id)}
-                                className="p-1 hover:bg-gray-200 rounded"
+                                className="p-1 hover:bg-gray-200 rounded transition-colors"
                               >
                                 <Check className="w-3 h-3 text-green-600" />
                               </button>
                             ) : (
                               <button 
                                 onClick={() => startEditing(employee.id, 'workHours')}
-                                className="p-1 hover:bg-gray-200 rounded"
+                                className="p-1 hover:bg-gray-200 rounded transition-colors"
                               >
                                 <Pencil className="w-3 h-3 text-gray-400" />
                               </button>
@@ -343,14 +433,14 @@ export default function Dashboard({
                               {isEditing(employee.id, 'greeting') ? (
                                 <button 
                                   onClick={() => stopEditing(employee.id)}
-                                  className="p-1 hover:bg-gray-200 rounded flex-shrink-0"
+                                  className="p-1 hover:bg-gray-200 rounded flex-shrink-0 transition-colors"
                                 >
                                   <Check className="w-3 h-3 text-green-600" />
                                 </button>
                               ) : (
                                 <button 
                                   onClick={() => startEditing(employee.id, 'greeting')}
-                                  className="p-1 hover:bg-gray-200 rounded flex-shrink-0"
+                                  className="p-1 hover:bg-gray-200 rounded flex-shrink-0 transition-colors"
                                 >
                                   <Pencil className="w-3 h-3 text-gray-400" />
                                 </button>
@@ -395,7 +485,7 @@ export default function Dashboard({
                         </div>
                         
                         {/* Task Section - Task List Format */}
-                        <div className="px-4 py-3 flex-1 flex flex-col border-2 border-blue-200 rounded-lg">
+                        <div className="px-4 py-3 flex-1 flex flex-col bg-gradient-to-br from-blue-50/30 to-indigo-50/20 rounded-lg shadow-sm border border-gray-100">
                           <div className="flex items-center justify-between mb-2">
                             <p className="font-semibold text-gray-800 text-sm">Task List</p>
                             {isEditing(employee.id, 'task') ? (
@@ -520,6 +610,7 @@ export default function Dashboard({
                 </Card>
               ))}
             </div>
+            )}
           </div>
         </div>
       </div>

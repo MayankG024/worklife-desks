@@ -30,6 +30,7 @@ export default function App() {
   const [pendingCompanyData, setPendingCompanyData] = useState<CompanyData | null>(null);
   const [appView, setAppView] = useState<AppView>('dashboard');
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'goals' | 'tasks'>('goals');
   const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoal[]>([]);
@@ -38,6 +39,7 @@ export default function App() {
 
   // Check for existing session on mount
   useEffect(() => {
+    setIsLoading(true);
     const savedUser = localStorage.getItem('currentUser');
     const savedEmployees = localStorage.getItem('employees');
     if (savedUser) {
@@ -47,6 +49,8 @@ export default function App() {
     if (savedEmployees) {
       setEmployees(JSON.parse(savedEmployees));
     }
+    // Simulate loading time for better UX
+    setTimeout(() => setIsLoading(false), 500);
   }, []);
 
   // Handle signup
@@ -263,24 +267,6 @@ export default function App() {
     toast.success('Weekly goal updated successfully!');
   };
 
-  const handleResetWeeklyGoal = (goalId: string) => {
-    setWeeklyGoals(weeklyGoals.map(goal => {
-      if (goal.id === goalId) {
-        return {
-          ...goal,
-          goalTitle: '',
-          targets: goal.targets.map(target => ({
-            ...target,
-            title: '',
-            actionSteps: []
-          }))
-        };
-      }
-      return goal;
-    }));
-    toast.info('Weekly goal has been reset');
-  };
-
   const handleDeleteMonthlyGoal = (goalId: string) => {
     setMonthlyGoals(monthlyGoals.filter(goal => goal.id !== goalId));
     toast.success('Monthly goal deleted');
@@ -368,6 +354,7 @@ export default function App() {
     const completedTasks = dailyTasks.filter(t => t.status === 'Done');
     const totalTimeSpent = dailyTasks.reduce((acc, task) => acc + task.timeSpent, 0);
     
+    // Enhanced report with more details
     const report = `
 =================================
 DAILY WORK REPORT
@@ -420,24 +407,6 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
     toast.success('Daily report downloaded!');
   };
 
-  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  // Calculate weekly goal progress from daily tasks
-  const weeklyGoalsProgress = weeklyGoals.map(weeklyGoal => {
-    const linkedTasks = dailyTasks.filter(task => task.weeklyGoalId === weeklyGoal.id);
-    let progress = 0;
-    if (linkedTasks.length > 0) {
-      const completedTasks = linkedTasks.filter(task => task.status === 'Done').length;
-      progress = Math.round((completedTasks / linkedTasks.length) * 100);
-    }
-    return {
-      id: weeklyGoal.id,
-      monthlyGoalId: weeklyGoal.monthlyGoalId,
-      goalTitle: weeklyGoal.goalTitle,
-      progress
-    };
-  });
-
   // Show auth pages if not authenticated
   if (authState === 'login') {
     return (
@@ -489,9 +458,7 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
         <Toaster />
         <Dashboard
           employees={employees.length > 0 ? employees : generateDemoEmployees()}
-          monthlyGoals={monthlyGoals}
-          weeklyGoals={weeklyGoals}
-          weeklyGoalsProgress={weeklyGoalsProgress}
+          isLoading={isLoading}
           onNavigateToGoals={() => { setAppView('workspace'); setActiveTab('goals'); }}
           onNavigateToTasks={() => { setAppView('workspace'); setActiveTab('tasks'); }}
           onLogout={handleLogout}
@@ -559,7 +526,7 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
               <Button 
                 onClick={generateDailyReport}
                 variant="outline"
-                className="flex items-center gap-2 border-2"
+                className="flex items-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
               >
                 <Download className="w-4 h-4" />
                 Generate Daily Report
@@ -567,7 +534,7 @@ ${dailyTasks.filter(t => t.status === 'To Do').map(task => `
               <Button 
                 onClick={handleLogout}
                 variant="ghost"
-                className="flex items-center gap-2 text-gray-600 hover:text-red-500"
+                className="flex items-center gap-2 text-gray-600 hover:text-red-500 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 Logout

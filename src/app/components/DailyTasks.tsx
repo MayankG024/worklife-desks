@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/app/components/ui/alert-dialog';
 import { Label } from '@/app/components/ui/label';
 import { Badge } from '@/app/components/ui/badge';
 import { Checkbox } from '@/app/components/ui/checkbox';
-import { Plus, Calendar, ChevronDown, Clock, Play, Pause, MoreVertical, Grid, List, Trash2, Pencil, Target } from 'lucide-react';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
+import { Plus, Calendar, Clock, MoreVertical, Pencil, Target, FileText } from 'lucide-react';
 import { cn } from '@/app/components/ui/utils';
 
 export interface DailyTask {
@@ -16,11 +17,16 @@ export interface DailyTask {
   targetId: string;
   title: string;
   dueDate: string;
+  dueTime?: string;
   tags: string[];
   priority: 'High' | 'Mid' | 'Low';
   status: 'To Do' | 'In Progress' | 'Done';
   timeSpent: number; // in minutes
   isActive: boolean; // currently being worked on
+  starred?: boolean;
+  assignedTo?: string;
+  notes?: string;
+  addedToMyTasks?: boolean;
 }
 
 interface DailyTasksProps {
@@ -40,19 +46,20 @@ export default function DailyTasks({
   onAddTask, 
   onToggleTask, 
   onUpdateTaskStatus: _onUpdateTaskStatus, 
-  onStartStopTask,
-  onDeleteTask,
   onUpdateTask
 }: DailyTasksProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [expandedTask, setExpandedTask] = useState<DailyTask | null>(null);
   const [editingTask, setEditingTask] = useState<DailyTask | null>(null);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [newTask, setNewTask] = useState({
     weeklyGoalId: '',
     targetId: '',
     title: '',
     dueDate: '',
+    dueTime: '',
+    assignedTo: '',
+    notes: '',
     tags: '',
     priority: 'Mid' as const,
     status: 'To Do' as const
@@ -82,13 +89,18 @@ export default function DailyTasks({
     if (newTask.title && newTask.weeklyGoalId && newTask.targetId && newTask.dueDate) {
       onAddTask({
         ...newTask,
-        tags: newTask.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
+        tags: newTask.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
+        starred: false,
+        addedToMyTasks: false
       });
       setNewTask({
         weeklyGoalId: '',
         targetId: '',
         title: '',
         dueDate: '',
+        dueTime: '',
+        assignedTo: '',
+        notes: '',
         tags: '',
         priority: 'Mid',
         status: 'To Do'
@@ -114,35 +126,47 @@ export default function DailyTasks({
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  const groupedTasks = {
-    'To Do': tasks.filter(t => t.status === 'To Do'),
-    'In Progress': tasks.filter(t => t.status === 'In Progress'),
-    'Done': tasks.filter(t => t.status === 'Done')
+  const toggleStar = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onUpdateTask) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        onUpdateTask(taskId, { starred: !task.starred });
+      }
+    }
+  };
+
+  const toggleAddToMyTasks = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onUpdateTask) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        onUpdateTask(taskId, { addedToMyTasks: !task.addedToMyTasks });
+      }
+    }
+  };
+
+  const toggleNoteExpansion = (taskId: string) => {
+    setExpandedNotes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
   };
 
   const activeTask = tasks.find(t => t.isActive);
 
-  const handleUpdateTask = () => {
-    if (editingTask && onUpdateTask) {
-      onUpdateTask(editingTask.id, {
-        title: editingTask.title,
-        dueDate: editingTask.dueDate,
-        tags: editingTask.tags,
-        priority: editingTask.priority,
-        weeklyGoalId: editingTask.weeklyGoalId,
-        targetId: editingTask.targetId,
-      });
-      setEditingTask(null);
-    }
-  };
-
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="tracking-wide mb-3 text-black font-semibold" style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: '2.4rem' }}>DAILY TASKS</h1>
           {activeTask && (
-            <div className="flex items-center gap-2 mt-3 p-3 bg-accent border-2 border-primary rounded-lg">
+            <div className="flex items-center gap-2 mt-3 p-4 bg-accent border-2 border-primary rounded-lg hover:shadow-sm transition-shadow">
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               <span className="text-sm">Working on: <span className="font-semibold">{activeTask.title}</span></span>
               <span className="text-sm text-gray-600">({formatTime(activeTaskTimes[activeTask.id] || activeTask.timeSpent)})</span>
@@ -150,27 +174,9 @@ export default function DailyTasks({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex border rounded-lg overflow-hidden">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="rounded-none"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'board' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('board')}
-              className="rounded-none"
-            >
-              <Grid className="w-4 h-4" />
-            </Button>
-          </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2 hover:shadow-md transition-all">
                 <Plus className="w-4 h-4" />
                 Add Task
               </Button>
@@ -219,13 +225,43 @@ export default function DailyTasks({
                     placeholder="e.g., Website Development"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dueDate">Due Date *</Label>
+                    <Input
+                      id="dueDate"
+                      type="date"
+                      value={newTask.dueDate}
+                      onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dueTime">Due Time</Label>
+                    <Input
+                      id="dueTime"
+                      type="time"
+                      value={newTask.dueTime}
+                      onChange={(e) => setNewTask({ ...newTask, dueTime: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dueDate">Due Date *</Label>
+                  <Label htmlFor="assignedTo">Assigned To</Label>
                   <Input
-                    id="dueDate"
-                    type="date"
-                    value={newTask.dueDate}
-                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                    id="assignedTo"
+                    value={newTask.assignedTo}
+                    onChange={(e) => setNewTask({ ...newTask, assignedTo: e.target.value })}
+                    placeholder="e.g., John Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={newTask.notes}
+                    onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
+                    placeholder="Add any additional notes..."
+                    rows={3}
                   />
                 </div>
                 <div className="space-y-2">
@@ -250,7 +286,7 @@ export default function DailyTasks({
                     <option value="High">High</option>
                   </select>
                 </div>
-                <Button onClick={handleSubmit} className="w-full">
+                <Button type="button" onClick={handleSubmit} className="w-full">
                   Create Task
                 </Button>
               </div>
@@ -271,218 +307,131 @@ export default function DailyTasks({
             </Button>
           )}
         </Card>
-      ) : viewMode === 'list' ? (
-        <div className="space-y-6">
-          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-            <Card key={status}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ChevronDown className="w-4 h-4" />
-                    <CardTitle>{status}</CardTitle>
-                    <Badge variant="secondary">{statusTasks.length}</Badge>
-                  </div>
-                  <MoreVertical className="w-4 h-4 text-gray-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                {statusTasks.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-4">No tasks in this category</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-12 gap-4 text-sm text-gray-500 pb-2 border-b">
-                      <div className="col-span-5">Task</div>
-                      <div className="col-span-2">Due Date</div>
-                      <div className="col-span-2">Task Tags</div>
-                      <div className="col-span-2">Priority</div>
-                      <div className="col-span-1">Time</div>
-                    </div>
-                    {statusTasks.map((task) => (
-                      <div 
-                        key={task.id} 
-                        className="grid grid-cols-12 gap-4 items-center py-3 border-b hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => setExpandedTask(task)}
-                      >
-                        <div className="col-span-5 flex items-center gap-3">
-                          <Checkbox
-                            checked={task.status === 'Done'}
-                            onCheckedChange={() => onToggleTask(task.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <span className={cn(
-                            task.status === 'Done' && 'line-through text-gray-400'
-                          )}>
-                            {task.title}
-                          </span>
-                        </div>
-                        <div className="col-span-2 flex items-center gap-2 text-sm">
-                          <Calendar className="w-4 h-4 text-blue-500" />
-                          <span>{new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        </div>
-                        <div className="col-span-2">
-                          {task.tags.map((tag, idx) => (
-                            <Badge key={idx} variant="secondary" className="mr-1 text-xs bg-blue-100 text-blue-700">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                        <div className="col-span-2">
-                          <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
-                            {task.priority}
-                          </Badge>
-                        </div>
-                        <div className="col-span-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant={task.isActive ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => onStartStopTask(task.id)}
-                            className="w-8 h-8 p-0"
-                          >
-                            {task.isActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                          </Button>
-                          {(activeTaskTimes[task.id] || task.timeSpent) > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <Clock className="w-3 h-3" />
-                              <span>{formatTime(activeTaskTimes[task.id] || task.timeSpent)}</span>
-                            </div>
-                          )}
-                          {onDeleteTask && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="w-8 h-8 p-0 text-gray-400 hover:text-red-500">
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete "{task.title}"? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => onDeleteTask(task.id)} className="bg-red-500 hover:bg-red-600">
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       ) : (
-        <div className="grid md:grid-cols-3 gap-4">
-          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-            <Card key={status} className="h-fit">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{status}</CardTitle>
-                  <Badge variant="secondary">{statusTasks.length}</Badge>
+        <div className="bg-white rounded-xl border-2 border-gray-200 shadow-sm overflow-hidden">
+          {/* Task List */}
+          <div className="divide-y divide-gray-100">
+            {[...tasks].sort((a, b) => {
+              // Starred tasks come first
+              if (a.starred && !b.starred) return -1;
+              if (!a.starred && b.starred) return 1;
+              return 0;
+            }).map((task) => (
+              <div key={task.id} className="hover:bg-gray-50 transition-colors">
+                {/* Main Task Row */}
+                <div className="p-4 flex items-center gap-3">
+                  {/* Checkbox */}
+                  <Checkbox
+                    checked={task.status === 'Done'}
+                    onCheckedChange={() => onToggleTask(task.id)}
+                    className="h-5 w-5 flex-shrink-0"
+                  />
+                  
+                  {/* Star */}
+                  <button
+                    onClick={(e) => toggleStar(task.id, e)}
+                    className="flex-shrink-0 transition-colors"
+                  >
+                    {task.starred ? (
+                      <svg className="w-5 h-5 fill-yellow-400 stroke-yellow-400" viewBox="0 0 24 24" strokeWidth="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 fill-none stroke-gray-400 hover:stroke-yellow-400" viewBox="0 0 24 24" strokeWidth="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* Task Title */}
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "font-medium text-gray-800 truncate",
+                      task.status === 'Done' && 'line-through text-gray-400'
+                    )}>
+                      {task.title}
+                    </p>
+                  </div>
+
+                  {/* Due Date & Time */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600 flex-shrink-0">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {task.dueTime && <span className="ml-1">{task.dueTime}</span>}
+                    </span>
+                  </div>
+
+                  {/* Priority Badge */}
+                  <Badge className={cn("text-xs flex-shrink-0", getPriorityColor(task.priority))}>
+                    {task.priority}
+                  </Badge>
+
+                  {/* Assigned To */}
+                  {task.assignedTo && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Avatar className="h-7 w-7">
+                        <AvatarFallback className="bg-[#1a5f4a] text-white text-xs font-medium">
+                          {task.assignedTo.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                  )}
+
+                  {/* Add to My Tasks Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => toggleAddToMyTasks(task.id, e)}
+                    className={cn(
+                      "flex-shrink-0 transition-all",
+                      task.addedToMyTasks && 'bg-[#1a5f4a] text-white hover:bg-[#164a3a] border-[#1a5f4a]'
+                    )}
+                  >
+                    {task.addedToMyTasks ? 'Added' : 'Add'}
+                  </Button>
+
+                  {/* Notes Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleNoteExpansion(task.id)}
+                    className="flex-shrink-0 transition-colors"
+                  >
+                    <FileText 
+                      className={cn(
+                        "w-5 h-5",
+                        expandedNotes.has(task.id) ? 'text-[#1a5f4a]' : 'text-gray-400'
+                      )} 
+                    />
+                  </Button>
+
+                  {/* More Options */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpandedTask(task)}
+                    className="flex-shrink-0"
+                  >
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
+                  </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {statusTasks.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">No tasks</p>
-                ) : (
-                  statusTasks.map((task) => (
-                    <Card 
-                      key={task.id} 
-                      className="border-2 hover:border-blue-300 transition-colors cursor-pointer"
-                      onClick={() => setExpandedTask(task)}
-                    >
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <Checkbox
-                            checked={task.status === 'Done'}
-                            onCheckedChange={() => onToggleTask(task.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
-                            {task.priority}
-                          </Badge>
-                        </div>
-                        <p className={cn(
-                          "font-medium",
-                          task.status === 'Done' && 'line-through text-gray-400'
-                        )}>
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {task.tags.map((tag, idx) => (
-                            <Badge key={idx} variant="secondary" className="text-xs bg-blue-100 text-blue-700">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                        <div className="flex items-center justify-between pt-2 border-t" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant={task.isActive ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => onStartStopTask(task.id)}
-                            >
-                              {task.isActive ? (
-                                <>
-                                  <Pause className="w-3 h-3 mr-1" />
-                                  Pause
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="w-3 h-3 mr-1" />
-                                  Start
-                                </>
-                              )}
-                            </Button>
-                            {onDeleteTask && (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="w-8 h-8 p-0 text-gray-400 hover:text-red-500">
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete "{task.title}"? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => onDeleteTask(task.id)} className="bg-red-500 hover:bg-red-600">
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            )}
-                          </div>
-                          {(activeTaskTimes[task.id] || task.timeSpent) > 0 && (
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatTime(activeTaskTimes[task.id] || task.timeSpent)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+
+                {/* Expandable Notes Section */}
+                {expandedNotes.has(task.id) && (
+                  <div className="px-4 pb-4 pt-0 ml-14 border-t border-gray-100 bg-gray-50">
+                    <Textarea
+                      value={task.notes || ''}
+                      onChange={(e) => onUpdateTask && onUpdateTask(task.id, { notes: e.target.value })}
+                      placeholder="Add notes..."
+                      className="mt-3 bg-white"
+                      rows={3}
+                    />
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -652,7 +601,12 @@ export default function DailyTasks({
                 </Button>
                 <Button 
                   className="bg-[#1a5f4a] hover:bg-[#164a3a]" 
-                  onClick={handleUpdateTask}
+                  onClick={() => {
+                    if (editingTask && onUpdateTask) {
+                      onUpdateTask(editingTask.id, editingTask);
+                      setEditingTask(null);
+                    }
+                  }}
                   disabled={!onUpdateTask}
                 >
                   Save Changes
